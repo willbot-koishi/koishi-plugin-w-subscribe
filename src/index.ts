@@ -156,21 +156,40 @@ class SubscribeService extends Service {
             })
 
         ctx.command('subscribe.check [kind:string]', '查看订阅的消息')
+            .alias('sc')
             .option('clear', '-c 清除已读消息')
+            .option('read', '-r 也查看已读消息')
             .option('global', '-G 查看所有群的消息（群内调用时，默认只查看本群消息）')
             .action(async ({ session, options }, kind) => {
                 const { uid, guildId, gid } = session
                 const messages = await ctx.database.get('w-subscribe-message', {
                     subscriber: uid,
                     kind: kind || {},
-                    guild: (guildId && ! options.global) ? gid : {}
+                    guild: (guildId && ! options.global) ? gid : {},
+                    hasRead: (options.clear || options.read) ? {} : false
                 })
                 const { length } = messages
                 if (! length) return '您没有订阅的消息'
-                return `您有 ${length} 条订阅的消息：\n` + (await Promise.all(messages.map(async (msg, index) => {
+
+                let removedCount = 0
+                if (options.clear) {
+                    removedCount = (await ctx.database.remove('w-subscribe-message', {
+                        id: { $in: messages.map(messages => messages.id) }
+                    })).removed
+                }
+                else {
+                    await ctx.database.set('w-subscribe-message', {
+                        id: { $in: messages.map(messages => messages.id) }
+                    }, { hasRead: true })
+                }
+
+                const rendered = await Promise.all(messages.map(async (msg, index) => {
                     const rule = this.rules.find(withKind(msg.kind))
-                    return `${index + 1}. ${ kind ? '' : `[${msg.kind}] ` }${await rule.render(session, msg)}`
-                }))).join('\n')
+                    return `${index + 1}${msg.hasRead ? '.' : '*'} ${ kind ? '' : `[${msg.kind}] ` }${await rule.render(session, msg)}`
+                }))
+
+                return `您有 ${length} 条订阅的消息：${(removedCount ? `（已清除 ${removedCount} 条已读消息）` : '')}\n`
+                    + rendered.join('\n')
             })
 
         ctx.command('subscribe.list-rules', '列出所有订阅规则')
