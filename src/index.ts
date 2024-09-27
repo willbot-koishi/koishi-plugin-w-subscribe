@@ -58,7 +58,7 @@ class SubscribeService extends Service {
 
     private rules: SubscriptionRule[] = []
 
-    private isKind = (str: string): str is SubscriptionKind => (str in this.rules)
+    private isKind = (str: string): str is SubscriptionKind => this.rules.some(withKind(str))
 
     constructor(ctx: Context) {
         super(ctx, 'subscribe')
