@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-w-subscribe",
   "description": "WillBot: subscription service",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -17,15 +17,15 @@
   "peerDependencies": {
     "koishi": "^4.18.0"
   },
-  "scripts": {
-    "build": "yarn workspace willbot build w-subscribe",
-    "bump": "yarn workspace willbot bump w-subscribe",
-    "pub": "yarn workspace willbot pub w-subscribe"
-  },
   "dependencies": {
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4"
+  },
+  "scripts": {
+    "build": "yarn workspace willbot build w-subscribe",
+    "bump": "yarn workspace willbot bump w-subscribe",
+    "pub": "yarn workspace willbot pub w-subscribe"
   }
 }

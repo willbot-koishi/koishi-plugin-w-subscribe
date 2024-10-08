@@ -50,6 +50,10 @@ declare module 'koishi' {
         'w-subscribe-message': SubscribedMessage
         'w-subscribe-subscription': Subscription
     }
+
+    interface Session {
+        getMemberName?: (uid: string) => string
+    }
 }
 
 export const withKind = (kind: string) => (rule: SubscriptionRule) => rule.kind === kind
@@ -256,7 +260,7 @@ class SubscribeService extends Service {
 
         ctx.command('subscribe.list-rules', '列出所有订阅规则')
             .action(() => {
-                const { rules } = ctx.subscribe
+                const { rules } = this
                 return `有 ${rules.length} 条订阅规则：` + rules.map(rule => `[${rule.kind}]`).join(', ')
             })
     }
@@ -290,6 +294,14 @@ class SubscribeService extends Service {
                 }).join('')
             }
             return msg.content
+        },
+        getMemberNameGetter: async (session: Session) => {
+            const { data: memberList } = await session.bot.getGuildMemberList(session.guildId)
+            const memberDict = Object.fromEntries(memberList.map((member) => [ member.user.id, member ]))
+            return (uid: string) => {
+                const member = memberDict[uid.split(':')[1]]
+                return member.nick || member.user.name || uid
+            }
         }
     }
 }
