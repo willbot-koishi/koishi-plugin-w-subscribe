@@ -1,4 +1,6 @@
-import { Context, h, Query, Schema, Service, Session, SessionError, Tables, Update, z } from 'koishi'
+import { Context, h, Query, Schema, Service, Session, SessionError, Update, z } from 'koishi'
+import {} from 'koishi-plugin-w-as-forward'
+import {} from 'koishi-plugin-w-as-slices'
 import yaml from 'js-yaml'
 
 export interface SubscriptionRules {
@@ -139,7 +141,7 @@ class SubscribeService extends Service {
             return subscription
         }
 
-        const tryWith = <T>(fn: () => T, getMessage: (err: any) => string): T => {
+        const tryWith = <T,>(fn: () => T, getMessage: (err: any) => string): T => {
             try {
                 return fn()
             }
@@ -148,7 +150,7 @@ class SubscribeService extends Service {
             }
         }
 
-        const loadConfig = <T>(configText: string, schema: z<T>): T => {
+        const loadConfig = <T,>(configText: string, schema: z<T>): T => {
             const rawConfig = tryWith(() => yaml.load(configText) as any, err => `YAML 解析错误：${err}`)
             return tryWith(() => schema(rawConfig), err => `配置格式错误：${err}`)
         }
@@ -221,11 +223,15 @@ class SubscribeService extends Service {
                     .join('\n')
             })
 
+        const PAGE_SIZE = 100
+        const SLICE_LENGTH = 5000
+
         ctx.command('subscribe.check [kind:string]', '查看订阅的消息')
             .alias('sc')
             .option('clear', '-c 清除已读消息')
             .option('read', '-r 也查看已读消息')
             .option('global', '-G 查看所有群的消息（群内调用时，默认只查看本群消息）')
+            .option('page', '-p <page:posint> 指定页码', { fallback: 1 })
             .action(async ({ session, options }, kind) => {
                 const { uid, guildId, gid } = session
                 const messages = await ctx.database.get('w-subscribe-message', {
@@ -249,13 +255,30 @@ class SubscribeService extends Service {
                     }, { hasRead: true })
                 }
 
+                const { page } = options
+                const pageCount = length / PAGE_SIZE | 0
+                if (page > pageCount) return `页码应为 1 ~ ${pageCount} 的整数`
+
                 const rendered = await Promise.all(messages.map(async (msg, index) => {
                     const rule = this.rules.find(withKind(msg.kind))
-                    return `${index + 1}${msg.hasRead ? '.' : '*'} ${ kind ? '' : `[${msg.kind}] ` }${await rule.render(session, msg)}`
+                    return <>
+                        { index + 1 }{ msg.hasRead ? '.' : '*' }{ kind ? '' : `[${msg.kind}] ` }
+                        { h.parse(await rule.render(session, msg)) }
+                        <br />
+                    </>
                 }))
 
-                return `您有 ${length} 条订阅的消息：${(removedCount ? `（已清除 ${removedCount} 条已读消息）` : '')}\n`
-                    + rendered.join('\n')
+                const header = <>
+                    您有 { length } 条订阅的消息（第 {page} / {pageCount} 页）：
+                    { (removedCount ? `（已清除 ${removedCount} 条已读消息）` : '') }
+                    <br /><br />
+                </>
+
+                return <as-forward level='always'>
+                    <as-slices header={header} sliceLength={SLICE_LENGTH}>
+                        { rendered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) }
+                    </as-slices>
+                </as-forward>
             })
 
         ctx.command('subscribe.list-rules', '列出所有订阅规则')
